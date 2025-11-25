@@ -18,7 +18,7 @@
 volatile char t_flag1 = 0, t_flag2 = 0;
 
 // Variables to store the time between pulses from the motor encoders.
-volatile uint16_t captured_value1 = 0, capture_value2 = 0;
+volatile uint16_t captured_value1 = 0, captured_value2 = 0;
 volatile uint16_t last_delta1 = 0;
 volatile uint16_t last_delta2 = 0;
 
@@ -28,7 +28,8 @@ volatile float freq1 = 0, freq2 = 0;
 // float freqMax = 525.0;
 
 // Function to set up the OLED-display.
-void OLED_init() {
+void OLED_init()
+{
   i2c_init();
   __delay_cycles(100000);
   ssd1306_init();
@@ -39,7 +40,8 @@ void OLED_init() {
 }
 
 // Function to initialize the SMCLK to 20 MHz.
-void init_SMCLK_20MHz() {
+void init_SMCLK_20MHz()
+{
   // Stop the watchdog timer
   WDTCTL = WDTPW | WDTHOLD;
 
@@ -61,7 +63,8 @@ void init_SMCLK_20MHz() {
   __bic_SR_register(SCG0); // Enable FLL control loop
 
   // Loop until XT2, XT1, and DCO stabilize
-  do {
+  do
+  {
     UCSCTL7 &= ~(XT2OFFG + XT1LFOFFG + DCOFFG); // Clear fault flags
     SFRIFG1 &= ~OFIFG;                          // Clear oscillator fault flags
   } while (SFRIFG1 & OFIFG); // Wait until stable
@@ -73,7 +76,8 @@ void init_SMCLK_20MHz() {
 }
 
 // Function to initialize TimerA0 to run ISR every ms.
-void timerA0_capture_init() {
+void timerA0_capture_init()
+{
   // Set clock source to ACLK, f = 32.768 Hz.
   // Set Input Divider (ID) to 1.
   // Set Mode Control (MC) to Continuous mode (counts to max = 65.535).
@@ -96,7 +100,8 @@ void timerA0_capture_init() {
 
 // Function to initialize TimerA1 for center-aligned PWM.
 // 50% duty cycle and PWM frequency of 9.760 Hz.
-void timerA1_PWM_init() {
+void timerA1_PWM_init()
+{
   // Set clock source to SMCLK, f = 19.988.480 Hz.
   // Set Input Divider (ID) to 1.
   // Set Mode Control (MC) to Up/Down mode.
@@ -120,7 +125,8 @@ void timerA1_PWM_init() {
   P2SEL |= BIT0;
 }
 
-int main() {
+int main()
+{
   // Initialize SMCLK to 20 MHz.
   init_SMCLK_20MHz();
 
@@ -150,22 +156,26 @@ int main() {
   char temp_buffer[32] = {};
 
   // Print logic for duty cycle and motor speed.
-  while (1) {
-    if (t_flag1) {
+  while (1)
+  {
+    if (t_flag1)
+    {
       t_flag1 = 0;
       counter1++;
 
       freq1 = (float)(32768.0 / last_delta1);
     }
 
-    if (t_flag2) {
+    if (t_flag2)
+    {
       t_flag2 = 0;
       counter2++;
 
       freq2 = (float)(32768.0 / last_delta2);
     }
 
-    if (counter1 >= 100) {
+    if (counter1 >= 100)
+    {
       counter1 = 0;
 
       // The RPS is the raw frequency divided by # of pulses per revolution.
@@ -196,7 +206,8 @@ int main() {
       ssd1306_printText(0, 5, RPM_buffer);
     }
 
-    if (counter2 >= 100) {
+    if (counter2 >= 100)
+    {
       counter2 = 0;
 
       // The RPS is the raw frequency divided by # of pulses per revoltion.
@@ -239,20 +250,24 @@ int main() {
 
 // Timer A0 Interrupt Service Routine.
 #pragma vector = TIMER0_A1_VECTOR
-__interrupt void Timer_A0_ISR(void) {
+__interrupt void Timer_A0_ISR(void)
+{
   // Variables to store
   static unsigned int last1 = 0, last2 = 0;
   static int i = 0, n = 0;
 
-  switch (TA0IV) {
+  switch (TA0IV)
+  {
   case 0x02: // Interrupt caused by CCR1 = P1.2.
              // Handle the captured value for the first encoder pulse.
     captured_value1 = (TA0CCR1 - last1);
     last1 = TA0CCR1;
     i++;
     // Only calculate the frequency every other encoder pulse.
-    if (i >= 2) {
-      if (captured_value1 != 0) {
+    if (i >= 2)
+    {
+      if (captured_value1 != 0)
+      {
         last_delta1 = captured_value1;
       }
 
@@ -268,8 +283,10 @@ __interrupt void Timer_A0_ISR(void) {
     last2 = TA0CCR2;
     n++;
     // Only calculate the frequency every other encoder pulse.
-    if (n >= 2) {
-      if (captured_value2 != 0) {
+    if (n >= 2)
+    {
+      if (captured_value2 != 0)
+      {
         last_delta2 = captured_value2;
       }
 
