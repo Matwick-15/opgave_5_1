@@ -18,10 +18,9 @@
 volatile char t_flag1 = 0, t_flag2 = 0;
 
 // Variables to store the time between pulses from the motor encoders.
-unsigned int captured_value1 = 0;
-unsigned int captured_value2 = 0;
-volatile unsigned int last_delta1 = 0;
-volatile unsigned int last_delta2 = 0;
+volatile uint16_t captured_value1 = 0, capture_value2 = 0;
+volatile uint16_t last_delta1 = 0;
+volatile uint16_t last_delta2 = 0;
 
 // freqx is the raw frequency from the motor encoders.
 // The actual rotational frequency is freqx / SCALER.
@@ -248,12 +247,7 @@ __interrupt void Timer_A0_ISR(void) {
   switch (TA0IV) {
   case 0x02: // Interrupt caused by CCR1 = P1.2.
              // Handle the captured value for the first encoder pulse.
-    // Handle overflow if last1 is greater than TA0CCR1.
-    if (last1 > TA0CCR1) {
-      captured_value1 = 65535 - last1 + TA0CCR1;
-    } else {
-      captured_value1 = (TA0CCR1 - last1);
-    }
+    captured_value1 = (TA0CCR1 - last1);
     last1 = TA0CCR1;
     i++;
     // Only calculate the frequency every other encoder pulse.
@@ -270,12 +264,7 @@ __interrupt void Timer_A0_ISR(void) {
 
   case 0x04: // Interrupt caused by CCR2 = P1.3.
              // Handle the captured value for the second encoder pulse.
-    // Handle overflow if last2 is greater than TA0CCR2.
-    if (last2 > TA0CCR2) {
-      captured_value2 = 65535 - last2 + TA0CCR2;
-    } else {
-      captured_value2 = (TA0CCR2 - last2);
-    }
+    captured_value2 = (TA0CCR2 - last2);
     last2 = TA0CCR2;
     n++;
     // Only calculate the frequency every other encoder pulse.
