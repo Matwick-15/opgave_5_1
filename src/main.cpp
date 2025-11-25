@@ -17,14 +17,13 @@
 // Timer flags for the Timer A0 ISR.
 volatile char t_flag1 = 0, t_flag2 = 0;
 
-// Variables to store the time between pulses from the motor encoders.
-volatile uint16_t captured_value1 = 0, captured_value2 = 0;
-volatile uint16_t last_delta1 = 0;
-volatile uint16_t last_delta2 = 0;
+// Variables to store the captured values from the motor encoders.
+unsigned int captured_value1 = 0;
+unsigned int captured_value2 = 0;
 
 // freqx is the raw frequency from the motor encoders.
 // The actual rotational frequency is freqx / SCALER.
-volatile float freq1 = 0, freq2 = 0;
+float freq1 = 0, freq2 = 0;
 // float freqMax = 525.0;
 
 // Function to set up the OLED-display.
@@ -135,12 +134,9 @@ int main() {
   __enable_interrupt();
 
   // Variables to
-  float duty_cycle = 0.0;
-  float RPS = 0.0;
-  float RPM = 0.0;
-  float shaft_RPM = 0.0;
-  unsigned int counter1 = 0;
-  unsigned int counter2 = 0;
+  float duty_cycle = 0;
+  float RPS = 0;
+  float RPM = 0;
 
   // Buffers etc. for printing.
   char duty_cycle_buffer[32] = {};
@@ -153,87 +149,46 @@ int main() {
   while (1) {
     if (t_flag1) {
       t_flag1 = 0;
-      counter1++;
 
-      freq1 = (float)(32768.0 / last_delta1);
+      // Print the raw frequency from moter encoder 1.
+      dtostrf(freq1, 0, 2, temp_buffer);
+      sprintf(freq_buffer, "Freq1: %sHz", temp_buffer);
+      ssd1306_printText(0, 1, freq_buffer);
+
+      // The RPS is the raw frequency divided by # of pulses per revolution.
+      RPS = freq1 / SCALER;
+
+      // Print the RPS of the motor.
+      dtostrf(RPS, 0, 2, temp_buffer);
+      sprintf(RPS_buffer, "RPS: %s", temp_buffer);
+      ssd1306_printText(0, 3, RPS_buffer);
     }
 
     if (t_flag2) {
       t_flag2 = 0;
-      counter2++;
 
-      freq2 = (float)(32768.0 / last_delta2);
-    }
-
-    if (counter1 >= 100) {
-      counter1 = 0;
-
-      // The RPS is the raw frequency divided by # of pulses per revolution.
-      RPS = freq1 / SCALER;
-      // The motor's RPM must be its RPS multiplied by 60.
-      RPM = RPS * 60.0;
-      // The shaft's RPM must be the motor RPM divided by the gear ratio.
-      shaft_RPM = RPM / GEAR_RATIO;
-
-      // Print the raw frequency from moter encoder 1.
-      dtostrf(freq1, 0, 2, temp_buffer);
-      sprintf(freq_buffer, "Freq1: %sHz    ", temp_buffer);
-      ssd1306_printText(0, 1, freq_buffer);
-
-      // Print the RPS of the motor.
-      dtostrf(RPS, 0, 2, temp_buffer);
-      sprintf(RPS_buffer, "Motor RPS: %s    ", temp_buffer);
-      ssd1306_printText(0, 3, RPS_buffer);
-
-      // Print the RPM of the motor.
-      dtostrf(RPM, 0, 2, temp_buffer);
-      sprintf(RPM_buffer, "Motor RPM: %s    ", temp_buffer);
-      ssd1306_printText(0, 4, RPM_buffer);
-
-      // Print the RPM of the shaft.
-      dtostrf(shaft_RPM, 0, 2, temp_buffer);
-      sprintf(RPM_buffer, "Shaft RPM: %s    ", temp_buffer);
-      ssd1306_printText(0, 5, RPM_buffer);
-    }
-
-    if (counter2 >= 100) {
-      counter2 = 0;
-
-      // The RPS is the raw frequency divided by # of pulses per revoltion.
-      RPS = freq2 / SCALER;
-      // The motor's RPM must be its RPS multiplied by 60.
-      RPM = RPS * 60.0;
-      // The shaft's RPM must be the motor RPM divided by the gear ratio.
-      shaft_RPM = RPM / GEAR_RATIO;
-
-      // Print the raw frequency from motor encoder 2.
       dtostrf(freq2, 0, 2, temp_buffer);
-      sprintf(freq_buffer, "Freq2: %sHz    ", temp_buffer);
+      sprintf(freq_buffer, "Freq2: %sHz", temp_buffer);
       ssd1306_printText(0, 2, freq_buffer);
 
-      // Print the RPS of the motor.
+      RPS = freq2 / SCALER;
+
       dtostrf(RPS, 0, 2, temp_buffer);
-      sprintf(RPS_buffer, "Motor RPS: %s    ", temp_buffer);
+      sprintf(RPS_buffer, "RPS: %s", temp_buffer);
       ssd1306_printText(0, 3, RPS_buffer);
-
-      // Print the RPM of the motor.
-      dtostrf(RPM, 0, 2, temp_buffer);
-      sprintf(RPM_buffer, "Motor RPM: %s    ", temp_buffer);
-      ssd1306_printText(0, 4, RPM_buffer);
-
-      // Print the RPM of the shaft.
-      dtostrf(shaft_RPM, 0, 2, temp_buffer);
-      sprintf(RPM_buffer, "Shaft RPM: %s    ", temp_buffer);
-      ssd1306_printText(0, 5, RPM_buffer);
     }
 
-    // The duty cycle is the ratio between TA1CCR0 and TA1CCR1.
     duty_cycle = (float)(100.0 * TA1CCR1) / TA1CCR0;
+    RPM = RPS * 60.0;
 
-    // Print the duty cycle.
     dtostrf(duty_cycle, 0, 2, temp_buffer);
     sprintf(duty_cycle_buffer, "Duty cycle: %s%%", temp_buffer);
+
+    dtostrf(RPM, 0, 2, temp_buffer);
+    sprintf(RPM_buffer, "RPM: %s", temp_buffer);
+
     ssd1306_printText(0, 0, duty_cycle_buffer);
+    ssd1306_printText(0, 4, RPM_buffer);
   }
 }
 
@@ -247,13 +202,18 @@ __interrupt void Timer_A0_ISR(void) {
   switch (TA0IV) {
   case 0x02: // Interrupt caused by CCR1 = P1.2.
              // Handle the captured value for the first encoder pulse.
-    captured_value1 = (TA0CCR1 - last1);
+    // Handle overflow if last1 is greater than TA0CCR1.
+    if (last1 > TA0CCR1) {
+      captured_value1 = 65535 - last1 + TA0CCR1;
+    } else {
+      captured_value1 = (TA0CCR1 - last1);
+    }
     last1 = TA0CCR1;
     i++;
     // Only calculate the frequency every other encoder pulse.
     if (i >= 2) {
       if (captured_value1 != 0) {
-        last_delta1 = captured_value1;
+        freq1 = (float)(32768.0 / captured_value1);
       }
 
       captured_value1 = 0;
@@ -264,13 +224,18 @@ __interrupt void Timer_A0_ISR(void) {
 
   case 0x04: // Interrupt caused by CCR2 = P1.3.
              // Handle the captured value for the second encoder pulse.
-    captured_value2 = (TA0CCR2 - last2);
+    // Handle overflow if last2 is greater than TA0CCR2.
+    if (last2 > TA0CCR2) {
+      captured_value2 = 65535 - last2 + TA0CCR2;
+    } else {
+      captured_value2 = (TA0CCR2 - last2);
+    }
     last2 = TA0CCR2;
     n++;
     // Only calculate the frequency every other encoder pulse.
     if (n >= 2) {
       if (captured_value2 != 0) {
-        last_delta2 = captured_value2;
+        freq2 = (float)(32768.0 / captured_value2);
       }
 
       captured_value2 = 0;
