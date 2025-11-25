@@ -1,0 +1,295 @@
+#include <Arduino.h>
+#include <math.h>
+#include <msp430.h>
+#include <msp430f5529.h>
+#include <stdint.h>
+#include <stdio.h>
+
+#include "i2c.h"
+#include "ssd1306.h"
+
+#define SCALER 48.0
+
+volatile char t_flag1 = 0, t_flag2 = 0;
+
+unsigned int captured_value1 = 0;
+unsigned int captured_value2 = 0;
+volatile float freq1 = 0, freq2 = 0;
+float freqMax = 525.0;
+
+// Function to set up the OLED-display.
+void OLED_init()
+{
+  i2c_init();
+  __delay_cycles(100000);
+  ssd1306_init();
+  __delay_cycles(100000);
+  reset_display();
+  __delay_cycles(100000);
+  ssd1306_printText(0, 0, "Hello world");
+}
+
+// Function to initialize the SMCLK to 20 MHz.
+void init_SMCLK_20MHz()
+{
+  // Stop the watchdog timer
+  WDTCTL = WDTPW | WDTHOLD;
+
+  // Select XT2 for SMCLK (Pins 5.2 and 5.3)
+  P5SEL |= BIT2 + BIT3;
+  P5SEL |= BIT4 + BIT5;
+
+  // Configure DCO to 20 MHz
+  // Disable FLL control loop
+  __bis_SR_register(SCG0);
+  // Set lowest possible DCOx and MODx
+  UCSCTL0 = 0x0000;
+  // Select DCO range (DCORSEL_7 for max range)
+  UCSCTL1 = DCORSEL_7;
+  // FLLD = 1, Multiplier N = 762 for ~25 MHz DCO   - 610 for 20MHz
+  UCSCTL2 = FLLD_0 + 610;
+
+  // Calculated by f DCOCLK = 32.768 kHz × 610 = 20 MHz
+  __bic_SR_register(SCG0); // Enable FLL control loop
+
+  // Loop until XT2, XT1, and DCO stabilize
+  do
+  {
+    UCSCTL7 &= ~(XT2OFFG + XT1LFOFFG + DCOFFG); // Clear fault flags
+    SFRIFG1 &= ~OFIFG;                          // Clear oscillator fault flags
+  } while (SFRIFG1 & OFIFG); // Wait until stable
+
+  UCSCTL3 = SELREF__REFOCLK; // Set FLL reference to REFO
+  UCSCTL4 = SELA__XT1CLK | SELS__DCOCLK |
+            SELM__DCOCLK; // Set ACLK = XT1; SMCLK = DCO; MCLK = DCO
+  UCSCTL5 = DIVS__1;      // Set SMCLK divider to 1 (no division)
+}
+
+// Function to initialize TimerA0 to run ISR every ms.
+void timerA0_capture_init()
+{
+  // Set clock source to ACLK, f = 32.768 Hz.
+  // Set Input Divider (ID) to 1.
+  // Set Mode Control (MC) to Continuous mode (counts to max = 65.535).
+  TA0CTL = TASSEL_1 | ID_0 | MC_2;
+  // ^ Output frequency becomes  0,5 Hz.
+
+  // CM_1   -> Capture on rising edge.
+  // CCIS_0 -> Capture input on CCI0A (P1.2 and P1.3).
+  // CAP    -> Set the timer to Capture mode.
+  // CCIE   -> Enable the Capture Compare interrupt.
+  // SCS    -> Synchronize the capture input signal with the timer clock.
+  TA0CCTL1 = CM_1 | CCIS_0 | CAP | CCIE | SCS;
+  TA0CCTL2 = CM_1 | CCIS_0 | CAP | CCIE | SCS;
+
+  // Configure P1.2 as the capture input for TA0CCR1.
+  // Configure P1.3 as the capture input for TA0CCR2.
+  P1DIR &= ~(BIT2 | BIT3);
+  P1SEL |= (BIT2 | BIT3);
+}
+
+// Function to initialize TimerA1 for center-aligned PWM.
+// 50% duty cycle and PWM frequency of 9.760 Hz.
+void timerA1_PWM_init()
+{
+  // Set clock source to SMCLK, f = 19.988.480 Hz.
+  // Set Input Divider (ID) to 1.
+  // Set Mode Control (MC) to Up/Down mode.
+  TA1CTL = TASSEL_2 | ID_0 | MC_3;
+  // New frequency: f = 19.988.480 Hz / 1 = 19.988.480 Hz.
+
+  // Output frequency: f = 19.988.480 Hz / (2 * TA1CCR0) = 9.760 Hz
+  TA1CCR0 = 1024;
+
+  // Set the output high when TA1R reaches 512.
+  TA1CCR1 = 512;
+
+  // Set timerA1 to reset/set output mode.
+  TA1CCTL1 = OUTMOD_2;
+
+  // Duty cycle becomes (TA1CCR1 / TA1CCR0) * 100%:
+  // (512 / 1024) * 100% = 50%
+
+  // Route the PWM output to pin P2.0.
+  P2DIR |= BIT0;
+  P2SEL |= BIT0;
+}
+
+int main()
+{
+  // Initialize SMCLK to 20 MHz.
+  init_SMCLK_20MHz();
+
+  // Initialize timer and PWM.
+  timerA0_capture_init();
+  timerA1_PWM_init();
+
+  // OLED display setup.
+  OLED_init();
+
+  // Enable global interrupts
+  __enable_interrupt();
+
+  // Configure P2.2 and P2.3 as outputs.
+  P2DIR |= BIT3 | BIT2;
+
+  // virabler
+  float duty_cycle = 0;
+  float RPS = 0;
+  float RPM = 0;
+  unsigned int counter1 = 0;
+  unsigned int counter2 = 0;
+
+  // Buffers etc. for printing.
+  char duty_cycle_buffer[32] = {};
+  char freq_buffer[32] = {};
+  char RPS_buffer[32] = {};
+  char RPM_buffer[32] = {};
+  char temp_buffer[32] = {};
+
+  // Print logic for duty cycle and motor speed.
+  while (1)
+  {
+
+    if (t_flag1)
+    {
+      t_flag1 = 0;
+      counter1++;
+    }
+
+    if (t_flag2)
+    {
+      t_flag2 = 0;
+      counter2++;
+    }
+
+    if (counter1 >= 400)
+    {
+      counter1 = 0;
+
+      // input 1 print (freq og RPS)
+
+      // formatering og print til OLED af *freq1*
+      dtostrf(freq1, 0, 2, temp_buffer);
+      sprintf(freq_buffer, "Freq1: %sHz     ", temp_buffer);
+      ssd1306_printText(0, 1, freq_buffer);
+
+      // uderegning af *RPS* ud fra *freq1*
+      RPS = freq1 / SCALER;
+
+      // print og formating af *RPS* udfra *freq1* til OLED
+      dtostrf(RPS, 0, 2, temp_buffer);
+      sprintf(RPS_buffer, "RPS: %s", temp_buffer);
+      ssd1306_printText(0, 3, RPS_buffer);
+
+      // RPM print
+      RPM = RPS * 60.0; // udregning af RPM
+      // print og formatering af *RPM* til OLED
+      dtostrf(RPM, 0, 2, temp_buffer);
+      sprintf(RPM_buffer, "RPM: %s", temp_buffer);
+      ssd1306_printText(0, 4, RPM_buffer);
+    }
+
+    if (counter2 >= 400)
+    {
+      counter2 = 0;
+      // input 2 print (freq og RPS)
+
+      // formatering og print til OLED af *freq2*
+      dtostrf(freq2, 0, 2, temp_buffer);
+      sprintf(freq_buffer, "Freq2: %sHz     ", temp_buffer);
+      ssd1306_printText(0, 2, freq_buffer);
+
+      // uderegning af *RPS* ud fra *freq2*
+      RPS = freq2 / SCALER;
+
+      // print og formating af *RPS* udfra *freq2* til OLED
+      dtostrf(RPS / 30, 0, 2, temp_buffer);
+      sprintf(RPS_buffer, "RPS: %s", temp_buffer);
+      ssd1306_printText(0, 3, RPS_buffer);
+
+      // RPM print
+      RPM = RPS * 60.0; // udregning af RPM
+      // print og formatering af *RPM* til OLED
+      dtostrf(RPM, 0, 2, temp_buffer);
+      sprintf(RPM_buffer, "RPM: %s", temp_buffer);
+      ssd1306_printText(0, 4, RPM_buffer);
+    }
+
+    // udregnning af *duty_cycle*
+    duty_cycle = (float)(100.0 * TA1CCR1) / TA1CCR0;
+
+    // formatering til print
+    dtostrf(duty_cycle, 0, 2, temp_buffer);
+    sprintf(duty_cycle_buffer, "Duty cycle: %s%%", temp_buffer);
+
+    // print til OLED
+    ssd1306_printText(0, 0, duty_cycle_buffer);
+  }
+}
+
+// Timer A0 Interrupt Service Routine.
+#pragma vector = TIMER0_A1_VECTOR
+__interrupt void Timer_A0_ISR(void)
+{
+  // Variables to store
+  static unsigned int last1 = 0, last2 = 0;
+  static int i = 0, n = 0;
+
+  //
+  switch (TA0IV)
+  {
+  case 0x02: // Interrupt caused by CCR1 = P1.2.
+             // Handle the captured value for the first encoder pulse
+    if (last1 > TA0CCR1)
+    {
+      captured_value1 = 65535 - last1 + TA0CCR1;
+    }
+    else
+    {
+      captured_value1 = (TA0CCR1 - last1);
+    }
+    last1 = TA0CCR1;
+    i++;
+    if (i >= 2)
+    {
+      if (captured_value1 != 0)
+      {
+        freq1 = (float)(32768.0 / captured_value1);
+      }
+
+      captured_value1 = 0;
+      i = 0;
+      t_flag1 = 1;
+    }
+    break;
+
+  case 0x04: // Interrupt caused by CCR2 = (P1.3)
+             // Handle the captured value for the second encoder pulse
+    if (last2 > TA0CCR2)
+    {
+      captured_value2 = 65535 - last2 + TA0CCR2;
+    }
+    else
+    {
+      captured_value2 = (TA0CCR2 - last2);
+    }
+    last2 = TA0CCR2;
+    n++;
+    if (n >= 2)
+    {
+      if (captured_value2 != 0)
+      {
+        freq2 = (float)(32768.0 / captured_value2);
+      }
+
+      captured_value2 = 0;
+      n = 0;
+      t_flag2 = 1;
+    }
+    break;
+
+  default:
+    break;
+  }
+}
