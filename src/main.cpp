@@ -18,7 +18,7 @@
 volatile char t_flag1 = 0, t_flag2 = 0;
 
 // Variables to store the time between pulses from the motor encoders.
-volatile uint16_t captured_value1 = 0, capture_value2 = 0;
+volatile uint16_t captured_value1 = 0, captured_value2 = 0;
 volatile uint16_t last_delta1 = 0;
 volatile uint16_t last_delta2 = 0;
 
