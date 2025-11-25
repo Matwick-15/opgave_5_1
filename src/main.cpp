@@ -27,7 +27,8 @@ float freq1 = 0, freq2 = 0;
 // float freqMax = 525.0;
 
 // Function to set up the OLED-display.
-void OLED_init() {
+void OLED_init()
+{
   i2c_init();
   __delay_cycles(100000);
   ssd1306_init();
@@ -38,7 +39,8 @@ void OLED_init() {
 }
 
 // Function to initialize the SMCLK to 20 MHz.
-void init_SMCLK_20MHz() {
+void init_SMCLK_20MHz()
+{
   // Stop the watchdog timer
   WDTCTL = WDTPW | WDTHOLD;
 
@@ -60,7 +62,8 @@ void init_SMCLK_20MHz() {
   __bic_SR_register(SCG0); // Enable FLL control loop
 
   // Loop until XT2, XT1, and DCO stabilize
-  do {
+  do
+  {
     UCSCTL7 &= ~(XT2OFFG + XT1LFOFFG + DCOFFG); // Clear fault flags
     SFRIFG1 &= ~OFIFG;                          // Clear oscillator fault flags
   } while (SFRIFG1 & OFIFG); // Wait until stable
@@ -72,7 +75,8 @@ void init_SMCLK_20MHz() {
 }
 
 // Function to initialize TimerA0 to run ISR every ms.
-void timerA0_capture_init() {
+void timerA0_capture_init()
+{
   // Set clock source to ACLK, f = 32.768 Hz.
   // Set Input Divider (ID) to 1.
   // Set Mode Control (MC) to Continuous mode (counts to max = 65.535).
@@ -95,7 +99,8 @@ void timerA0_capture_init() {
 
 // Function to initialize TimerA1 for center-aligned PWM.
 // 50% duty cycle and PWM frequency of 9.760 Hz.
-void timerA1_PWM_init() {
+void timerA1_PWM_init()
+{
   // Set clock source to SMCLK, f = 19.988.480 Hz.
   // Set Input Divider (ID) to 1.
   // Set Mode Control (MC) to Up/Down mode.
@@ -119,7 +124,8 @@ void timerA1_PWM_init() {
   P2SEL |= BIT0;
 }
 
-int main() {
+int main()
+{
   // Initialize SMCLK to 20 MHz.
   init_SMCLK_20MHz();
 
@@ -146,13 +152,15 @@ int main() {
   char temp_buffer[32] = {};
 
   // Print logic for duty cycle and motor speed.
-  while (1) {
-    if (t_flag1) {
+  while (1)
+  {
+    if (t_flag1)
+    {
       t_flag1 = 0;
 
       // Print the raw frequency from moter encoder 1.
       dtostrf(freq1, 0, 2, temp_buffer);
-      sprintf(freq_buffer, "Freq1: %sHz", temp_buffer);
+      sprintf(freq_buffer, "Freq1: %sHz   ", temp_buffer);
       ssd1306_printText(0, 1, freq_buffer);
 
       // The RPS is the raw frequency divided by # of pulses per revolution.
@@ -160,21 +168,22 @@ int main() {
 
       // Print the RPS of the motor.
       dtostrf(RPS, 0, 2, temp_buffer);
-      sprintf(RPS_buffer, "RPS: %s", temp_buffer);
+      sprintf(RPS_buffer, "RPS: %s    ", temp_buffer);
       ssd1306_printText(0, 3, RPS_buffer);
     }
 
-    if (t_flag2) {
+    if (t_flag2)
+    {
       t_flag2 = 0;
 
       dtostrf(freq2, 0, 2, temp_buffer);
-      sprintf(freq_buffer, "Freq2: %sHz", temp_buffer);
+      sprintf(freq_buffer, "Freq2: %sHz    ", temp_buffer);
       ssd1306_printText(0, 2, freq_buffer);
 
       RPS = freq2 / SCALER;
 
       dtostrf(RPS, 0, 2, temp_buffer);
-      sprintf(RPS_buffer, "RPS: %s", temp_buffer);
+      sprintf(RPS_buffer, "RPS: %s   ", temp_buffer);
       ssd1306_printText(0, 3, RPS_buffer);
     }
 
@@ -194,25 +203,32 @@ int main() {
 
 // Timer A0 Interrupt Service Routine.
 #pragma vector = TIMER0_A1_VECTOR
-__interrupt void Timer_A0_ISR(void) {
+__interrupt void Timer_A0_ISR(void)
+{
   // Variables to store
   static unsigned int last1 = 0, last2 = 0;
   static int i = 0, n = 0;
 
-  switch (TA0IV) {
+  switch (TA0IV)
+  {
   case 0x02: // Interrupt caused by CCR1 = P1.2.
              // Handle the captured value for the first encoder pulse.
     // Handle overflow if last1 is greater than TA0CCR1.
-    if (last1 > TA0CCR1) {
+    if (last1 > TA0CCR1)
+    {
       captured_value1 = 65535 - last1 + TA0CCR1;
-    } else {
+    }
+    else
+    {
       captured_value1 = (TA0CCR1 - last1);
     }
     last1 = TA0CCR1;
     i++;
     // Only calculate the frequency every other encoder pulse.
-    if (i >= 2) {
-      if (captured_value1 != 0) {
+    if (i >= 2)
+    {
+      if (captured_value1 != 0)
+      {
         freq1 = (float)(32768.0 / captured_value1);
       }
 
@@ -225,16 +241,21 @@ __interrupt void Timer_A0_ISR(void) {
   case 0x04: // Interrupt caused by CCR2 = P1.3.
              // Handle the captured value for the second encoder pulse.
     // Handle overflow if last2 is greater than TA0CCR2.
-    if (last2 > TA0CCR2) {
+    if (last2 > TA0CCR2)
+    {
       captured_value2 = 65535 - last2 + TA0CCR2;
-    } else {
+    }
+    else
+    {
       captured_value2 = (TA0CCR2 - last2);
     }
     last2 = TA0CCR2;
     n++;
     // Only calculate the frequency every other encoder pulse.
-    if (n >= 2) {
-      if (captured_value2 != 0) {
+    if (n >= 2)
+    {
+      if (captured_value2 != 0)
+      {
         freq2 = (float)(32768.0 / captured_value2);
       }
 
