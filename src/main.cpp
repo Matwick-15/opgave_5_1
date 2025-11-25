@@ -20,6 +20,8 @@ volatile char t_flag1 = 0, t_flag2 = 0;
 // Variables to store the time between pulses from the motor encoders.
 unsigned int captured_value1 = 0;
 unsigned int captured_value2 = 0;
+volatile unsigned int last_delta1 = 0;
+volatile unsigned int last_delta2 = 0;
 
 // freqx is the raw frequency from the motor encoders.
 // The actual rotational frequency is freqx / SCALER.
@@ -153,11 +155,15 @@ int main() {
     if (t_flag1) {
       t_flag1 = 0;
       counter1++;
+
+      freq1 = (float)(32768.0 / last_delta1);
     }
 
     if (t_flag2) {
       t_flag2 = 0;
       counter2++;
+
+      freq2 = (float)(32768.0 / last_delta2);
     }
 
     if (counter1 >= 100) {
@@ -253,7 +259,7 @@ __interrupt void Timer_A0_ISR(void) {
     // Only calculate the frequency every other encoder pulse.
     if (i >= 2) {
       if (captured_value1 != 0) {
-        freq1 = (float)(32768.0 / captured_value1);
+        last_delta1 = captured_value1;
       }
 
       captured_value1 = 0;
@@ -275,7 +281,7 @@ __interrupt void Timer_A0_ISR(void) {
     // Only calculate the frequency every other encoder pulse.
     if (n >= 2) {
       if (captured_value2 != 0) {
-        freq2 = (float)(32768.0 / captured_value2);
+        last_delta2 = captured_value2;
       }
 
       captured_value2 = 0;
