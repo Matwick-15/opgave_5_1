@@ -164,12 +164,6 @@ int main() {
 
   // Print logic for duty cycle and motor speed.
   while (1) {
-    duty_cycle = (float)(100.0 * TA1CCR1) / TA1CCR0;
-
-    dtostrf(duty_cycle, 0, 2, temp_buffer);
-    sprintf(duty_cycle_buffer, "Duty cycle: %s%%", temp_buffer);
-    ssd1306_printText(0, 0, duty_cycle_buffer);
-
     if (t_flag) {
       t_flag = 0;
       counter++;
@@ -182,6 +176,8 @@ int main() {
         freq_av = 0.0;
         i = 0;
 
+        // The duty cycle is the ratio between TA1CCR1 and TA1CCR0.
+        duty_cycle = (float)(100.0 * TA1CCR1) / TA1CCR0;
         // The RPS is the raw frequency divided by # of pulses per revolution.
         RPS = freq / SCALER;
         // The shaft RPS is the motor RPS divided by the gear ratio.
@@ -194,6 +190,11 @@ int main() {
         // Printing with delay.
         if (counter >= 100) {
           counter = 0;
+
+          // Print the duty cycle.
+          dtostrf(duty_cycle, 0, 2, temp_buffer);
+          sprintf(duty_cycle_buffer, "Duty cycle: %s%%", temp_buffer);
+          ssd1306_printText(0, 0, duty_cycle_buffer);
 
           // Print the raw frequency from moter encoder 1.
           dtostrf(freq, 0, 2, temp_buffer);
