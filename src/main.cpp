@@ -174,7 +174,7 @@ int main()
       freq_av += freq;
       i++;
 
-      if (i >= 10)
+      if (i == 10)
       {
         freq = freq_av / 10.0;
         freq_av = 0.0;
@@ -201,12 +201,12 @@ int main()
 
           // Print the RPS of the motor.
           dtostrf(RPS, 0, 2, temp_buffer);
-          sprintf(RPS_buffer, "RPS: %s    ", temp_buffer);
+          sprintf(RPS_buffer, "Motor RPS: %s    ", temp_buffer);
           ssd1306_printText(0, 2, RPS_buffer);
 
           // Print the RPS of the shaft.
           dtostrf(shaft_RPS, 0, 2, temp_buffer);
-          sprintf(RPS_buffer, "RPS: %s    ", temp_buffer);
+          sprintf(RPS_buffer, "Shaft RPS: %s    ", temp_buffer);
           ssd1306_printText(0, 3, RPS_buffer);
 
           // Print the RPM of the motor.
