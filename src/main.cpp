@@ -137,6 +137,7 @@ int main() {
   float duty_cycle = 0;
   float RPS = 0;
   float RPM = 0;
+  float shaft_RPM = 0;
   unsigned int counter1 = 0;
   unsigned int counter2 = 0;
 
@@ -157,6 +158,7 @@ int main() {
   while (1) {
     duty_cycle = (float)(100.0 * TA1CCR1) / TA1CCR0;
     RPM = RPS * 60.0;
+    shaft_RPM = RPM / GEAR_RATIO;
 
     dtostrf(duty_cycle, 0, 2, temp_buffer);
     sprintf(duty_cycle_buffer, "Duty cycle: %s%%", temp_buffer);
@@ -192,8 +194,13 @@ int main() {
 
           // Print the RPM of the motor.
           dtostrf(RPM, 0, 2, temp_buffer);
-          sprintf(RPM_buffer, "RPM: %s    ", temp_buffer);
+          sprintf(RPM_buffer, "Motor RPM: %s    ", temp_buffer);
           ssd1306_printText(0, 4, RPM_buffer);
+
+          // Print the RPM of the shaft.
+          dtostrf(shaft_RPM, 0, 2, temp_buffer);
+          sprintf(RPM_buffer, "Shaft RPM: %s    ", temp_buffer);
+          ssd1306_printText(0, 5, RPM_buffer);
         }
       }
     }
