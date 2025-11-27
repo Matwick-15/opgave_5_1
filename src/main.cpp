@@ -135,6 +135,7 @@ int main() {
   // Variables to store display values.
   float duty_cycle = 0;
   float RPS = 0;
+  float shaft_RPS = 0;
   float RPM = 0;
   float shaft_RPM = 0;
   unsigned int counter = 0;
@@ -153,8 +154,6 @@ int main() {
   // Print logic for duty cycle and motor speed.
   while (1) {
     duty_cycle = (float)(100.0 * TA1CCR1) / TA1CCR0;
-    RPM = RPS * 60.0;
-    shaft_RPM = RPM / GEAR_RATIO;
 
     dtostrf(duty_cycle, 0, 2, temp_buffer);
     sprintf(duty_cycle_buffer, "Duty cycle: %s%%", temp_buffer);
@@ -174,7 +173,14 @@ int main() {
 
         // The RPS is the raw frequency divided by # of pulses per revolution.
         RPS = freq / SCALER;
+        // The shaft RPS is the motor RPS divided by the gear ratio.
+        shaft_RPS = RPS / GEAR_RATIO;
+        // The RPM is the RPS multiplied by 60.
+        RPM = RPS * 60.0;
+        // The shaft RPM is the motor RPM divided by the gear ratio.
+        shaft_RPM = RPM / GEAR_RATIO;
 
+        // Printing with delay.
         if (counter >= 100) {
           counter = 0;
 
@@ -186,7 +192,12 @@ int main() {
           // Print the RPS of the motor.
           dtostrf(RPS, 0, 2, temp_buffer);
           sprintf(RPS_buffer, "RPS: %s    ", temp_buffer);
-          ssd1306_printText(0, 3, RPS_buffer);
+          ssd1306_printText(0, 2, RPS_buffer);
+
+          // Print the RPS of the shaft.
+          dtostrf(shaft_RPS, 0, 2, temp_buffer);
+          sprintf(RPS_buffer, "RPS: %s    ", temp_buffer);
+          ssd1306_printText(0, 2, RPS_buffer);
 
           // Print the RPM of the motor.
           dtostrf(RPM, 0, 2, temp_buffer);
