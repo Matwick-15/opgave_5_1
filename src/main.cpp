@@ -134,7 +134,7 @@ int main() {
   // Enable global interrupts
   __enable_interrupt();
 
-  // Variables to
+  // Variables to store display values.
   float duty_cycle = 0.0;
   float RPS = 0.0;
   float RPM = 0.0;
@@ -268,9 +268,11 @@ __interrupt void Timer_A0_ISR(void) {
     i++;
     // Only calculate the frequency every other encoder pulse.
     if (i >= 2) {
-      if (captured_value1 != 0) {
-        last_delta1 = captured_value1;
+      if (captured_value1 == 0) {
+        captured_value1 = 1;
       }
+
+      last_delta1 = captured_value1;
 
       captured_value1 = 0;
       i = 0;
