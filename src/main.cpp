@@ -10,24 +10,34 @@
 
 // SCALER is how many encoder pulses we get for each motor revolution.
 #define SCALER 24.0
-
 // The gear ratio from the motor to the shaft is 30:1.
 #define GEAR_RATIO 30.0
 
-// Timer flags for the Timer A0 ISR.
-volatile char t_flag = 0, t_flag2 = 0;
+// Arbitrary values to avoid saturation and desaturation.
+#define TA1CCR1_MAX 800
+#define TA1CCR1_MIN 100
 
+float Ga = 5.0;
+float Gm = 0.2513;
+float step_factor = 3.9793076;
+float G = 0;
+// Should be ~1920 for 50% duty cycle (TA1CCR1 = 512).
+float desired_freq = 600.0;
+float freq_error = 0;
+int error = 0;
+unsigned int TA1CCR1_ph = 0;
+
+// Timer flags for the Timer A0 ISR.
+volatile char t_flag = 0;
 // Variables to store the captured values from the motor encoders.
 unsigned int captured_value = 0;
 
 // freqx is the raw frequency from the motor encoders.
-// The actual rotational frequency is freqx / SCALER.
+// The actual rotational frequency is freq / SCALER.
 float freq = 0;
-// float freqMax = 525.0;
 
 // Function to set up the OLED-display.
-void OLED_init()
-{
+void OLED_init() {
   i2c_init();
   __delay_cycles(100000);
   ssd1306_init();
@@ -38,8 +48,7 @@ void OLED_init()
 }
 
 // Function to initialize the SMCLK to 20 MHz.
-void init_SMCLK_20MHz()
-{
+void init_SMCLK_20MHz() {
   // Stop the watchdog timer
   WDTCTL = WDTPW | WDTHOLD;
 
@@ -61,8 +70,7 @@ void init_SMCLK_20MHz()
   __bic_SR_register(SCG0); // Enable FLL control loop
 
   // Loop until XT2, XT1, and DCO stabilize
-  do
-  {
+  do {
     UCSCTL7 &= ~(XT2OFFG + XT1LFOFFG + DCOFFG); // Clear fault flags
     SFRIFG1 &= ~OFIFG;                          // Clear oscillator fault flags
   } while (SFRIFG1 & OFIFG); // Wait until stable
@@ -74,8 +82,7 @@ void init_SMCLK_20MHz()
 }
 
 // Function to initialize TimerA0 to run ISR every ms.
-void timerA0_capture_init()
-{
+void timerA0_capture_init() {
   // Set clock source to ACLK, f = 32.768 Hz.
   // Set Input Divider (ID) to 1.
   // Set Mode Control (MC) to Continuous mode (counts to max = 65.535).
@@ -98,8 +105,7 @@ void timerA0_capture_init()
 
 // Function to initialize TimerA1 for center-aligned PWM.
 // 50% duty cycle and PWM frequency of 9.760 Hz.
-void timerA1_PWM_init()
-{
+void timerA1_PWM_init() {
   // Set clock source to SMCLK, f = 19.988.480 Hz.
   // Set Input Divider (ID) to 1.
   // Set Mode Control (MC) to Up/Down mode.
@@ -123,8 +129,7 @@ void timerA1_PWM_init()
   P2SEL |= BIT0;
 }
 
-int main()
-{
+int main() {
   // Initialize SMCLK to 20 MHz.
   init_SMCLK_20MHz();
 
@@ -158,24 +163,21 @@ int main()
   char temp_buffer[32] = {};
 
   // Print logic for duty cycle and motor speed.
-  while (1)
-  {
+  while (1) {
     duty_cycle = (float)(100.0 * TA1CCR1) / TA1CCR0;
 
     dtostrf(duty_cycle, 0, 2, temp_buffer);
     sprintf(duty_cycle_buffer, "Duty cycle: %s%%", temp_buffer);
     ssd1306_printText(0, 0, duty_cycle_buffer);
 
-    if (t_flag)
-    {
+    if (t_flag) {
       t_flag = 0;
       counter++;
 
       freq_av += freq;
       i++;
 
-      if (i == 10)
-      {
+      if (i == 10) {
         freq = freq_av / 10.0;
         freq_av = 0.0;
         i = 0;
@@ -190,8 +192,7 @@ int main()
         shaft_RPM = RPM / GEAR_RATIO;
 
         // Printing with delay.
-        if (counter >= 100)
-        {
+        if (counter >= 100) {
           counter = 0;
 
           // Print the raw frequency from moter encoder 1.
@@ -226,27 +227,21 @@ int main()
 
 // Timer A0 Interrupt Service Routine.
 #pragma vector = TIMER0_A1_VECTOR
-__interrupt void Timer_A0_ISR(void)
-{
+__interrupt void Timer_A0_ISR(void) {
   // Variables to store
   static unsigned int last = 0;
 
-  switch (TA0IV)
-  {
+  switch (TA0IV) {
   case 0x02: // Interrupt caused by CCR1 = P1.2.
              // Handle the captured value for the first encoder pulse.
     // Handle overflow if last is greater than TA0CCR1.
-    if (last > TA0CCR1)
-    {
+    if (last > TA0CCR1) {
       captured_value = 65535 - last + TA0CCR1;
-    }
-    else
-    {
+    } else {
       captured_value = (TA0CCR1 - last);
     }
 
-    if (captured_value <= 0)
-    {
+    if (captured_value <= 0) {
       captured_value = 1;
     }
 
@@ -254,6 +249,22 @@ __interrupt void Timer_A0_ISR(void)
 
     captured_value = 0;
     t_flag = 1;
+
+    G = Ga * Gm;
+
+    freq_error = desired_freq - freq;
+    // Can cause errors as the MSP430 is bad at floats.
+    error = (int)(freq_error / step_factor);
+
+    TA1CCR1_ph = (unsigned int)(TA1CCR1 + error * G);
+
+    if (TA1CCR1_ph > TA1CCR1_MAX) {
+      TA1CCR1_ph = TA1CCR1_MAX;
+    } else if (TA1CCR1_ph < TA1CCR1_MIN) {
+      TA1CCR1_ph = TA1CCR1_MIN;
+    } else {
+      TA1CCR1 = TA1CCR1_ph;
+    }
 
     break;
 
