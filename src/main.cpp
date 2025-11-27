@@ -78,13 +78,13 @@ void timerA0_capture_init() {
   TA0CTL = TASSEL_1 | ID_0 | MC_2;
   // ^ Output frequency becomes  0,5 Hz.
 
-  // CM_1   -> Capture on rising and falling edge.
+  // CM_1   -> Capture on rising edge.
   // CCIS_0 -> Capture input on CCI0A (P1.2 and P1.3).
   // CAP    -> Set the timer to Capture mode.
   // CCIE   -> Enable the Capture Compare interrupt.
   // SCS    -> Synchronize the capture input signal with the timer clock.
-  TA0CCTL1 = CM_3 | CCIS_0 | CAP | CCIE | SCS;
-  TA0CCTL2 = CM_3 | CCIS_0 | CAP | CCIE | SCS;
+  TA0CCTL1 = CM_1 | CCIS_0 | CAP | CCIE | SCS;
+  TA0CCTL2 = CM_1 | CCIS_0 | CAP | CCIE | SCS;
 
   // Configure P1.2 as the capture input for TA0CCR1.
   // Configure P1.3 as the capture input for TA0CCR2.
