@@ -9,7 +9,7 @@
 #include "ssd1306.h"
 
 // SCALER is how many encoder pulses we get for each motor revolution.
-#define SCALER 48.0
+#define SCALER 24.0
 
 // The gear ratio from the motor to the shaft is 30:1.
 #define GEAR_RATIO 30.0
