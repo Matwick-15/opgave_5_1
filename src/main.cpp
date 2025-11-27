@@ -79,13 +79,13 @@ void timerA0_capture_init() {
   TA0CTL = TASSEL_1 | ID_0 | MC_2;
   // ^ Output frequency becomes  0,5 Hz.
 
-  // CM_1   -> Capture on rising edge.
+  // CM_1   -> Capture on rising and falling edge.
   // CCIS_0 -> Capture input on CCI0A (P1.2 and P1.3).
   // CAP    -> Set the timer to Capture mode.
   // CCIE   -> Enable the Capture Compare interrupt.
   // SCS    -> Synchronize the capture input signal with the timer clock.
-  TA0CCTL1 = CM_1 | CCIS_0 | CAP | CCIE | SCS;
-  TA0CCTL2 = CM_1 | CCIS_0 | CAP | CCIE | SCS;
+  TA0CCTL1 = CM_3 | CCIS_0 | CAP | CCIE | SCS;
+  TA0CCTL2 = CM_3 | CCIS_0 | CAP | CCIE | SCS;
 
   // Configure P1.2 as the capture input for TA0CCR1.
   // Configure P1.3 as the capture input for TA0CCR2.
@@ -133,10 +133,15 @@ int main() {
   // Enable global interrupts
   __enable_interrupt();
 
-  // Variables to
+  // Variables to store display values.
   float duty_cycle = 0;
   float RPS = 0;
   float RPM = 0;
+
+  float freq1_av = 0;
+  float freq2_av = 0;
+  unsigned int i = 0;
+  unsigned int n = 0;
 
   // Buffers etc. for printing.
   char duty_cycle_buffer[32] = {};
@@ -149,6 +154,14 @@ int main() {
   while (1) {
     if (t_flag1) {
       t_flag1 = 0;
+
+      freq1_av += freq1;
+      i++;
+
+      if (i >= 10) {
+        freq1 = freq1_av / 10.0;
+        i = 0;
+      }
 
       // Print the raw frequency from moter encoder 1.
       dtostrf(freq1, 0, 2, temp_buffer);
@@ -166,6 +179,14 @@ int main() {
 
     if (t_flag2) {
       t_flag2 = 0;
+
+      freq2_av += freq2;
+      n++;
+
+      if (n >= 10) {
+        freq2 = freq2_av / 10.0;
+        n = 0;
+      }
 
       dtostrf(freq2, 0, 2, temp_buffer);
       sprintf(freq_buffer, "Freq2: %sHz", temp_buffer);
@@ -212,9 +233,11 @@ __interrupt void Timer_A0_ISR(void) {
     i++;
     // Only calculate the frequency every other encoder pulse.
     if (i >= 2) {
-      if (captured_value1 != 0) {
-        freq1 = (float)(32768.0 / captured_value1);
+      if (captured_value1 == 0) {
+        captured_value1 = 1;
       }
+
+      freq1 = (float)(32768.0 / captured_value1);
 
       captured_value1 = 0;
       i = 0;
@@ -234,9 +257,11 @@ __interrupt void Timer_A0_ISR(void) {
     n++;
     // Only calculate the frequency every other encoder pulse.
     if (n >= 2) {
-      if (captured_value2 != 0) {
-        freq2 = (float)(32768.0 / captured_value2);
+      if (captured_value2 == 0) {
+        captured_value2 = 1;
       }
+
+      freq2 = (float)(32768.0 / captured_value2);
 
       captured_value2 = 0;
       n = 0;
