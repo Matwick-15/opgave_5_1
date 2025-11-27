@@ -37,7 +37,8 @@ unsigned int captured_value = 0;
 float freq = 0;
 
 // Function to set up the OLED-display.
-void OLED_init() {
+void OLED_init()
+{
   i2c_init();
   __delay_cycles(100000);
   ssd1306_init();
@@ -48,7 +49,8 @@ void OLED_init() {
 }
 
 // Function to initialize the SMCLK to 20 MHz.
-void init_SMCLK_20MHz() {
+void init_SMCLK_20MHz()
+{
   // Stop the watchdog timer
   WDTCTL = WDTPW | WDTHOLD;
 
@@ -70,7 +72,8 @@ void init_SMCLK_20MHz() {
   __bic_SR_register(SCG0); // Enable FLL control loop
 
   // Loop until XT2, XT1, and DCO stabilize
-  do {
+  do
+  {
     UCSCTL7 &= ~(XT2OFFG + XT1LFOFFG + DCOFFG); // Clear fault flags
     SFRIFG1 &= ~OFIFG;                          // Clear oscillator fault flags
   } while (SFRIFG1 & OFIFG); // Wait until stable
@@ -82,7 +85,8 @@ void init_SMCLK_20MHz() {
 }
 
 // Function to initialize TimerA0 to run ISR every ms.
-void timerA0_capture_init() {
+void timerA0_capture_init()
+{
   // Set clock source to ACLK, f = 32.768 Hz.
   // Set Input Divider (ID) to 1.
   // Set Mode Control (MC) to Continuous mode (counts to max = 65.535).
@@ -105,7 +109,8 @@ void timerA0_capture_init() {
 
 // Function to initialize TimerA1 for center-aligned PWM.
 // 50% duty cycle and PWM frequency of 9.760 Hz.
-void timerA1_PWM_init() {
+void timerA1_PWM_init()
+{
   // Set clock source to SMCLK, f = 19.988.480 Hz.
   // Set Input Divider (ID) to 1.
   // Set Mode Control (MC) to Up/Down mode.
@@ -116,9 +121,9 @@ void timerA1_PWM_init() {
   TA1CCR0 = 1024;
 
   // Set the output high when TA1R reaches 512.
-  TA1CCR1 = 512;
+  TA1CCR1 = 768;
 
-  // Set timerA1 to reset/set output mode.
+  // Set timerA1 to toggle reset output mode.
   TA1CCTL1 = OUTMOD_2;
 
   // Duty cycle becomes (TA1CCR1 / TA1CCR0) * 100%:
@@ -129,7 +134,8 @@ void timerA1_PWM_init() {
   P2SEL |= BIT0;
 }
 
-int main() {
+int main()
+{
   // Initialize SMCLK to 20 MHz.
   init_SMCLK_20MHz();
 
@@ -163,15 +169,18 @@ int main() {
   char temp_buffer[32] = {};
 
   // Print logic for duty cycle and motor speed.
-  while (1) {
-    if (t_flag) {
+  while (1)
+  {
+    if (t_flag)
+    {
       t_flag = 0;
       counter++;
 
       freq_av += freq;
       i++;
 
-      if (i == 10) {
+      if (i == 10)
+      {
         freq = freq_av / 10.0;
         freq_av = 0.0;
         i = 0;
@@ -188,7 +197,8 @@ int main() {
         shaft_RPM = RPM / GEAR_RATIO;
 
         // Printing with delay.
-        if (counter >= 100) {
+        if (counter >= 100)
+        {
           counter = 0;
 
           // Print the duty cycle.
@@ -228,21 +238,27 @@ int main() {
 
 // Timer A0 Interrupt Service Routine.
 #pragma vector = TIMER0_A1_VECTOR
-__interrupt void Timer_A0_ISR(void) {
+__interrupt void Timer_A0_ISR(void)
+{
   // Variables to store
   static unsigned int last = 0;
 
-  switch (TA0IV) {
+  switch (TA0IV)
+  {
   case 0x02: // Interrupt caused by CCR1 = P1.2.
              // Handle the captured value for the first encoder pulse.
     // Handle overflow if last is greater than TA0CCR1.
-    if (last > TA0CCR1) {
+    if (last > TA0CCR1)
+    {
       captured_value = 65535 - last + TA0CCR1;
-    } else {
+    }
+    else
+    {
       captured_value = (TA0CCR1 - last);
     }
 
-    if (captured_value <= 0) {
+    if (captured_value <= 0)
+    {
       captured_value = 1;
     }
 
@@ -259,11 +275,16 @@ __interrupt void Timer_A0_ISR(void) {
 
     TA1CCR1_ph = (unsigned int)(TA1CCR1 + error * G);
 
-    if (TA1CCR1_ph > TA1CCR1_MAX) {
+    if (TA1CCR1_ph > TA1CCR1_MAX)
+    {
       TA1CCR1_ph = TA1CCR1_MAX;
-    } else if (TA1CCR1_ph < TA1CCR1_MIN) {
+    }
+    else if (TA1CCR1_ph < TA1CCR1_MIN)
+    {
       TA1CCR1_ph = TA1CCR1_MIN;
-    } else {
+    }
+    else
+    {
       TA1CCR1 = TA1CCR1_ph;
     }
 
