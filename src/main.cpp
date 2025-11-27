@@ -208,7 +208,6 @@ int main() {
 __interrupt void Timer_A0_ISR(void) {
   // Variables to store
   static unsigned int last = 0;
-  static int i = 0, n = 0;
 
   switch (TA0IV) {
   case 0x02: // Interrupt caused by CCR1 = P1.2.
@@ -219,20 +218,16 @@ __interrupt void Timer_A0_ISR(void) {
     } else {
       captured_value = (TA0CCR1 - last);
     }
-    last = TA0CCR1;
-    i++;
-    // Only calculate the frequency every other encoder pulse.
-    if (i >= 2) {
-      if (captured_value <= 0) {
-        captured_value = 1;
-      }
 
-      freq = (float)(32768.0 / captured_value);
-
-      captured_value = 0;
-      i = 0;
-      t_flag = 1;
+    if (captured_value <= 0) {
+      captured_value = 1;
     }
+
+    freq = (float)(32768.0 / captured_value);
+
+    captured_value = 0;
+    t_flag = 1;
+
     break;
 
   case 0x04: // Interrupt caused by CCR2 = P1.3.
