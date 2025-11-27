@@ -110,7 +110,7 @@ void timerA1_PWM_init()
   TA1CCR0 = 1024;
 
   // Set the output high when TA1R reaches 512.
-  TA1CCR1 = 256;
+  TA1CCR1 = 512;
 
   // Set timerA1 to reset/set output mode.
   TA1CCTL1 = OUTMOD_2;
