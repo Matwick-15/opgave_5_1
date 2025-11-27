@@ -172,10 +172,29 @@ int main() {
       if (i >= 10) {
         freq1 = freq1_av / 10.0;
         i = 0;
-      }
 
-      // The RPS is the raw frequency divided by # of pulses per revolution.
-      RPS = freq1 / SCALER;
+        // The RPS is the raw frequency divided by # of pulses per revolution.
+        RPS = freq1 / SCALER;
+
+        if (counter1 >= 100) {
+          counter1 = 0;
+
+          // Print the raw frequency from moter encoder 1.
+          dtostrf(freq1, 0, 2, temp_buffer);
+          sprintf(freq_buffer, "Freq1: %sHz    ", temp_buffer);
+          ssd1306_printText(0, 1, freq_buffer);
+
+          // Print the RPS of the motor.
+          dtostrf(RPS, 0, 2, temp_buffer);
+          sprintf(RPS_buffer, "RPS: %s    ", temp_buffer);
+          ssd1306_printText(0, 3, RPS_buffer);
+
+          // Print the RPM of the motor.
+          dtostrf(RPM, 0, 2, temp_buffer);
+          sprintf(RPM_buffer, "RPM: %s    ", temp_buffer);
+          ssd1306_printText(0, 4, RPM_buffer);
+        }
+      }
     }
 
     if (t_flag2) {
@@ -188,43 +207,24 @@ int main() {
       if (n >= 10) {
         freq2 = freq2_av / 10.0;
         n = 0;
+
+        // The RPS is the raw frequency divided by # of pulses per revolution.
+        RPS = freq2 / SCALER;
+
+        if (counter2 >= 100) {
+          counter2 = 0;
+
+          // Print the raw frequency from moter encoder 1.
+          dtostrf(freq2, 0, 2, temp_buffer);
+          sprintf(freq_buffer, "Freq2: %sHz    ", temp_buffer);
+          ssd1306_printText(0, 2, freq_buffer);
+
+          // Print the RPS of the motor.
+          dtostrf(RPS, 0, 2, temp_buffer);
+          sprintf(RPS_buffer, "RPS: %s    ", temp_buffer);
+          ssd1306_printText(0, 3, RPS_buffer);
+        }
       }
-
-      // The RPS is the raw frequency divided by # of pulses per revolution.
-      RPS = freq2 / SCALER;
-    }
-
-    if (counter1 >= 100) {
-      counter1 = 0;
-
-      // Print the raw frequency from moter encoder 1.
-      dtostrf(freq1, 0, 2, temp_buffer);
-      sprintf(freq_buffer, "Freq1: %sHz    ", temp_buffer);
-      ssd1306_printText(0, 1, freq_buffer);
-
-      // Print the RPS of the motor.
-      dtostrf(RPS, 0, 2, temp_buffer);
-      sprintf(RPS_buffer, "RPS: %s    ", temp_buffer);
-      ssd1306_printText(0, 3, RPS_buffer);
-
-      // Print the RPM of the motor.
-      dtostrf(RPM, 0, 2, temp_buffer);
-      sprintf(RPM_buffer, "RPM: %s    ", temp_buffer);
-      ssd1306_printText(0, 4, RPM_buffer);
-    }
-
-    if (counter2 >= 100) {
-      counter2 = 0;
-
-      // Print the raw frequency from moter encoder 1.
-      dtostrf(freq2, 0, 2, temp_buffer);
-      sprintf(freq_buffer, "Freq2: %sHz    ", temp_buffer);
-      ssd1306_printText(0, 2, freq_buffer);
-
-      // Print the RPS of the motor.
-      dtostrf(RPS, 0, 2, temp_buffer);
-      sprintf(RPS_buffer, "RPS: %s    ", temp_buffer);
-      ssd1306_printText(0, 3, RPS_buffer);
     }
   }
 }
