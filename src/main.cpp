@@ -197,7 +197,7 @@ int main() {
           // Print the RPS of the shaft.
           dtostrf(shaft_RPS, 0, 2, temp_buffer);
           sprintf(RPS_buffer, "RPS: %s    ", temp_buffer);
-          ssd1306_printText(0, 2, RPS_buffer);
+          ssd1306_printText(0, 3, RPS_buffer);
 
           // Print the RPM of the motor.
           dtostrf(RPM, 0, 2, temp_buffer);
