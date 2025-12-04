@@ -303,22 +303,17 @@ __interrupt void Timer_A0_ISR(void)
     }
     // sætter *TA1CCR1* til den godkendte *TA1CCR1_ph*
     TA1CCR1 = TA1CCR1_ph;
-
-    // Clear Capture Compare Interrupt Flag.
-    TA0CCTL1 &= ~CCIFG;
     break;
 
   case 0x04: // Interrupt caused by CCR2 = P1.3.
 
     // Handle the captured value for the second encoder pulse.
     last = TA0CCR2;
-    // Clear Capture Compare Interrupt Flag.
-    TA0CCTL1 &= ~CCIFG;
+
     break;
 
   default:
-    // Clear Capture Compare Interrupt Flag.
-    TA0CCTL1 &= ~CCIFG;
+
     break;
   }
 }
