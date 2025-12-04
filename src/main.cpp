@@ -1,11 +1,11 @@
-// libarys
+// Libraries
 #include <Arduino.h>
 #include <math.h>
 #include <msp430.h>
 #include <msp430f5529.h>
 #include <stdint.h>
 #include <stdio.h>
-// in file libarys
+// Local libraries.
 #include "i2c.h"
 #include "ssd1306.h"
 
