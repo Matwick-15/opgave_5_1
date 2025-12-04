@@ -1,10 +1,11 @@
+// libarys
 #include <Arduino.h>
 #include <math.h>
 #include <msp430.h>
 #include <msp430f5529.h>
 #include <stdint.h>
 #include <stdio.h>
-
+// in file libarys
 #include "i2c.h"
 #include "ssd1306.h"
 
@@ -17,9 +18,12 @@
 #define TA1CCR1_MAX 800
 #define TA1CCR1_MIN 100
 
+// hvore gain modefier
+// siger hvor mange af de skridt en Hz er, som vi skal bruge
 float Ga = 1.0;
+// er hvor mange "skridt/tælning" en Hz savre til
 float Gm = 0.2513;
-// hvilken frekvens et "skridt/tælning" svare til
+// hvilken frekvens et "skridt"/tælning svare til
 float step_factor = 3.9793076;
 // hvores geain faktor
 float G = 0;
@@ -162,6 +166,7 @@ int main()
   float shaft_RPS = 0;
   float RPM = 0;
   float shaft_RPM = 0;
+  // tæller som hjæler med at udglate print til OLED
   unsigned int counter = 0;
 
   // Variables necessary for averaging frequencies.
@@ -209,8 +214,8 @@ int main()
           counter = 0;
 
           // Print the duty cycle.
-          dtostrf(duty_cycle, 0, 2, temp_buffer);
-          sprintf(duty_cycle_buffer, "Duty cycle: %s%%", temp_buffer);
+          dtostrf(duty_cycle, 0, 2, temp_buffer);                      // formater fra float til string
+          sprintf(duty_cycle_buffer, "Duty cycle: %s%%", temp_buffer); // formater til OLED
           ssd1306_printText(0, 0, duty_cycle_buffer);
 
           // Print the raw frequency from moter encoder 1.
@@ -285,14 +290,18 @@ __interrupt void Timer_A0_ISR(void)
 
     TA1CCR1_ph = (unsigned int)(TA1CCR1 + error * G);
 
+    // tjeker for Max og min værdi så vi ikke mætter systemet
     if (TA1CCR1_ph > TA1CCR1_MAX)
     {
+      // hvis *TA1CCR1_ph* er over max værdien sættes den til *TA1CCR1_MAX*
       TA1CCR1_ph = TA1CCR1_MAX;
     }
     else if (TA1CCR1_ph < TA1CCR1_MIN)
     {
+      // hvis er *TA1CCR1_ph* under minumim værdien sættes den til *TA1CCR1_MIN*
       TA1CCR1_ph = TA1CCR1_MIN;
     }
+    // sætter *TA1CCR1* til den godkendte *TA1CCR1_ph*
     TA1CCR1 = TA1CCR1_ph;
 
     // Clear Capture Compare Interrupt Flag.
@@ -300,7 +309,8 @@ __interrupt void Timer_A0_ISR(void)
     break;
 
   case 0x04: // Interrupt caused by CCR2 = P1.3.
-             // Handle the captured value for the second encoder pulse.
+
+    // Handle the captured value for the second encoder pulse.
     last = TA0CCR2;
     // Clear Capture Compare Interrupt Flag.
     TA0CCTL1 &= ~CCIFG;
