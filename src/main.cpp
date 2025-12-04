@@ -18,24 +18,23 @@
 #define TA1CCR1_MAX 800
 #define TA1CCR1_MIN 100
 
-// hvore gain modefier
-// siger hvor mange af de skridt en Hz er, som vi skal bruge
+// Controller gain: a tunable multiplier to scale controller output with.
 float Ga = 1.0;
-// er hvor mange "skridt/tælning" en Hz savre til
+// Motor gain: number of TA1 counting steps per Hz.
 float Gm = 0.2513;
-// hvilken frekvens et "skridt"/tælning svare til
+// Inverse of Gm. How many Hz one counting step gives.
 float step_factor = 3.9793076;
-// hvores geain faktor
+// The total gain factor is G = Ga * Gm.
 float G = 0;
-// den frakvens som vi ønsker
+// The demand/desired frequency:
 // Should be ~1920 for 50% duty cycle (TA1CCR1 = 512).
 float desired_freq = 1920.0;
-// forskelne mellem den ønskede frekvens og den målte
+// The difference between current frequency and desired frequency.
 float freq_error = 0;
-// frekvens fejlen udtrykt som anatal "ccr-skridt"
+// The frequency error shown in TA1CCR1 steps.
 int error = 0;
-// en place holder til den nye *CCR1* værdi
-// så vi kan teste den først
+// A placeholder for the new TA1CCR1 value
+// so it can be tested first.
 unsigned int TA1CCR1_ph = 0;
 
 // Timer flag for the Timer A0 ISR.
@@ -43,13 +42,12 @@ volatile char t_flag = 0;
 // Variables to store the captured values from the motor encoders.
 unsigned int captured_value = 0;
 
-// freq is the raw frequency from the motor encoders.
+// `freq` is the raw frequency from the motor encoders.
 // The actual rotational frequency is freq / SCALER.
 float freq = 0;
 
 // Function to set up the OLED-display.
-void OLED_init()
-{
+void OLED_init() {
   i2c_init();
   __delay_cycles(100000);
   ssd1306_init();
@@ -59,9 +57,8 @@ void OLED_init()
   ssd1306_printText(0, 0, "Hello world");
 }
 
-// Function to initialize the SMCLK to 20 MHz.
-void init_SMCLK_20MHz()
-{
+// Function to initialize the SMCLK to ~18 MHz.
+void init_SMCLK_18MHz() {
   // Stop the watchdog timer
   WDTCTL = WDTPW | WDTHOLD;
 
@@ -76,15 +73,14 @@ void init_SMCLK_20MHz()
   UCSCTL0 = 0x0000;
   // Select DCO range (DCORSEL_7 for max range)
   UCSCTL1 = DCORSEL_7;
-  // FLLD = 1, Multiplier N = 762 for ~25 MHz DCO   - 610 for 20MHz
+  // FLLD = 1, Multiplier N = 762 for ~25 MHz DCO   - 550 for ~18MHz
   UCSCTL2 = FLLD_0 + 550;
 
   // Calculated by f DCOCLK = 32.768 kHz × 610 = 20 MHz
   __bic_SR_register(SCG0); // Enable FLL control loop
 
   // Loop until XT2, XT1, and DCO stabilize
-  do
-  {
+  do {
     UCSCTL7 &= ~(XT2OFFG + XT1LFOFFG + DCOFFG); // Clear fault flags
     SFRIFG1 &= ~OFIFG;                          // Clear oscillator fault flags
   } while (SFRIFG1 & OFIFG); // Wait until stable
@@ -95,9 +91,8 @@ void init_SMCLK_20MHz()
   UCSCTL5 = DIVS__1;      // Set SMCLK divider to 1 (no division)
 }
 
-// Function to initialize TimerA0 to run ISR every ms.
-void timerA0_capture_init()
-{
+// Function to initialize TimerA0 to run ISR every 1 ms.
+void timerA0_capture_init() {
   // Set clock source to ACLK, f = 32.768 Hz.
   // Set Input Divider (ID) to 1.
   // Set Mode Control (MC) to Continuous mode (counts to max = 65.535).
@@ -119,22 +114,21 @@ void timerA0_capture_init()
 }
 
 // Function to initialize TimerA1 for center-aligned PWM.
-// 50% duty cycle and PWM frequency of 9.760 Hz.
-void timerA1_PWM_init()
-{
-  // Set clock source to SMCLK, f = 19.988.480 Hz.
+// 50% duty cycle and PWM frequency of ~8.776 Hz.
+void timerA1_PWM_init() {
+  // Set clock source to SMCLK, f = 17.972.900 Hz.
   // Set Input Divider (ID) to 1.
   // Set Mode Control (MC) to Up/Down mode.
   TA1CTL = TASSEL_2 | ID_0 | MC_3;
-  // New frequency: f = 19.988.480 Hz / 1 = 19.988.480 Hz.
+  // New frequency: f = 17.972.900 Hz / 1 = 17.972.900 Hz.
 
-  // Output frequency: f = 19.988.480 Hz / (2 * TA1CCR0) = 9.760 Hz
+  // Output frequency: f = 17.972.900 Hz / (2 * TA1CCR0) = ~8.776 Hz
   TA1CCR0 = 1024;
 
-  // Set the output high when TA1R reaches 512.
+  // Toggle the output when TA1R reaches 512.
   TA1CCR1 = 512;
 
-  // Set timerA1 to toggle reset output mode.
+  // Set timerA1 to toggle/reset output mode.
   TA1CCTL1 = OUTMOD_2;
 
   // Duty cycle becomes (TA1CCR1 / TA1CCR0) * 100%:
@@ -145,10 +139,9 @@ void timerA1_PWM_init()
   P2SEL |= BIT0;
 }
 
-int main()
-{
+int main() {
   // Initialize SMCLK to 20 MHz.
-  init_SMCLK_20MHz();
+  init_SMCLK_18MHz();
 
   // Initialize timer and PWM.
   timerA0_capture_init();
@@ -166,7 +159,8 @@ int main()
   float shaft_RPS = 0;
   float RPM = 0;
   float shaft_RPM = 0;
-  // tæller som hjæler med at udglate print til OLED
+
+  // Counter which helps smooth the OLED printing.
   unsigned int counter = 0;
 
   // Variables necessary for averaging frequencies.
@@ -181,18 +175,15 @@ int main()
   char temp_buffer[32] = {};
 
   // Print logic for duty cycle and motor speed.
-  while (1)
-  {
-    if (t_flag)
-    {
+  while (1) {
+    if (t_flag) {
       t_flag = 0;
       counter++;
 
       freq_av += freq;
       i++;
 
-      if (i == 10)
-      {
+      if (i == 10) {
         freq = freq_av / 10.0;
         freq_av = 0.0;
         i = 0;
@@ -209,13 +200,14 @@ int main()
         shaft_RPM = RPM / GEAR_RATIO;
 
         // Printing with delay.
-        if (counter >= 100)
-        {
+        if (counter >= 100) {
           counter = 0;
 
           // Print the duty cycle.
-          dtostrf(duty_cycle, 0, 2, temp_buffer);                      // formater fra float til string
-          sprintf(duty_cycle_buffer, "Duty cycle: %s%%", temp_buffer); // formater til OLED
+          dtostrf(duty_cycle, 0, 2,
+                  temp_buffer); // Converts from float to string (2 decimals).
+          sprintf(duty_cycle_buffer, "Duty cycle: %s%%",
+                  temp_buffer); // Formatting for the OLED display.
           ssd1306_printText(0, 0, duty_cycle_buffer);
 
           // Print the raw frequency from moter encoder 1.
@@ -250,58 +242,55 @@ int main()
 
 // Timer A0 Interrupt Service Routine.
 #pragma vector = TIMER0_A1_VECTOR
-__interrupt void Timer_A0_ISR(void)
-{
+__interrupt void Timer_A0_ISR(void) {
   // Variables to store
   static unsigned int last = 0;
 
-  switch (TA0IV)
-  {
+  switch (TA0IV) {
   case 0x02: // Interrupt caused by CCR1 = P1.2.
              // Handle the captured value for the first encoder pulse.
     // Handle overflow if last is greater than TA0CCR1.
-    if (last > TA0CCR1)
-    {
+    if (last > TA0CCR1) {
       captured_value = 65535 - last + TA0CCR1;
-    }
-    else
-    {
+    } else {
       captured_value = (TA0CCR1 - last);
     }
 
     last = TA0CCR1;
 
     // Handle negative values and division by zero.
-    if (captured_value <= 0)
-    {
+    if (captured_value <= 0) {
       captured_value = 1;
     }
 
+    // Calculate the frequency as clock frequency divided by
+    // counter steps between encoder pulses.
     freq = (float)(32768.0 / captured_value);
 
     captured_value = 0;
     t_flag = 1;
 
+    // The loop gain is G = Ga * Gm.
     G = Ga * Gm;
 
+    // Find the difference between desired frequency and current frequency.
     freq_error = desired_freq - freq;
-    // Can cause errors as the MSP430 is bad at floats.
+    // Find the differency between desired duty cycle (TA1CCR1) and current duty
+    // cycle (TA1CCR1). Can cause errors as the MSP430 is bad at floats.
     error = (int)(freq_error / step_factor);
 
+    // Change TA1CCR1 as a placeholder first.
     TA1CCR1_ph = (unsigned int)(TA1CCR1 + error * G);
 
-    // tjeker for Max og min værdi så vi ikke mætter systemet
-    if (TA1CCR1_ph > TA1CCR1_MAX)
-    {
-      // hvis *TA1CCR1_ph* er over max værdien sættes den til *TA1CCR1_MAX*
+    // Check for MAX and MIN values to avoid saturation and desaturation.
+    if (TA1CCR1_ph > TA1CCR1_MAX) {
+      // If `TA1CCR1_ph` is over the max value, it is set to `TA1CCR1_MAX`.
       TA1CCR1_ph = TA1CCR1_MAX;
-    }
-    else if (TA1CCR1_ph < TA1CCR1_MIN)
-    {
-      // hvis er *TA1CCR1_ph* under minumim værdien sættes den til *TA1CCR1_MIN*
+    } else if (TA1CCR1_ph < TA1CCR1_MIN) {
+      // If `TA1CCR1_ph` is under the min value, it is set to `TA1CCR1_MIN`.
       TA1CCR1_ph = TA1CCR1_MIN;
     }
-    // sætter *TA1CCR1* til den godkendte *TA1CCR1_ph*
+    // Set `TA1CCR1` to the accepted value after checking.
     TA1CCR1 = TA1CCR1_ph;
 
     // Clear Capture Compare Interrupt Flag.
@@ -309,8 +298,7 @@ __interrupt void Timer_A0_ISR(void)
     break;
 
   case 0x04: // Interrupt caused by CCR2 = P1.3.
-
-    // Handle the captured value for the second encoder pulse.
+             // Handle the captured value for the second encoder pulse.
     last = TA0CCR2;
     // Clear Capture Compare Interrupt Flag.
     TA0CCTL1 &= ~CCIFG;
