@@ -22,17 +22,17 @@ float Gm = 0.2513;
 float step_factor = 3.9793076;
 float G = 0;
 // Should be ~1920 for 50% duty cycle (TA1CCR1 = 512).
-float desired_freq = 600.0;
+float desired_freq = 1920.0;
 float freq_error = 0;
 int error = 0;
 unsigned int TA1CCR1_ph = 0;
 
-// Timer flags for the Timer A0 ISR.
+// Timer flag for the Timer A0 ISR.
 volatile char t_flag = 0;
 // Variables to store the captured values from the motor encoders.
 unsigned int captured_value = 0;
 
-// freqx is the raw frequency from the motor encoders.
+// freq is the raw frequency from the motor encoders.
 // The actual rotational frequency is freq / SCALER.
 float freq = 0;
 
@@ -64,7 +64,7 @@ void init_SMCLK_20MHz() {
   // Select DCO range (DCORSEL_7 for max range)
   UCSCTL1 = DCORSEL_7;
   // FLLD = 1, Multiplier N = 762 for ~25 MHz DCO   - 610 for 20MHz
-  UCSCTL2 = FLLD_0 + 610;
+  UCSCTL2 = FLLD_0 + 550;
 
   // Calculated by f DCOCLK = 32.768 kHz × 610 = 20 MHz
   __bic_SR_register(SCG0); // Enable FLL control loop
@@ -266,21 +266,23 @@ __interrupt void Timer_A0_ISR(void) {
       TA1CCR1_ph = TA1CCR1_MAX;
     } else if (TA1CCR1_ph < TA1CCR1_MIN) {
       TA1CCR1_ph = TA1CCR1_MIN;
-    } else {
-      TA1CCR1 = TA1CCR1_ph;
     }
+    TA1CCR1 = TA1CCR1_ph;
 
+    // Clear Capture Compare Interrupt Flag.
+    TA0CCTL1 &= ~CCIFG;
     break;
 
   case 0x04: // Interrupt caused by CCR2 = P1.3.
              // Handle the captured value for the second encoder pulse.
     last = TA0CCR2;
+    // Clear Capture Compare Interrupt Flag.
+    TA0CCTL1 &= ~CCIFG;
     break;
 
   default:
+    // Clear Capture Compare Interrupt Flag.
+    TA0CCTL1 &= ~CCIFG;
     break;
   }
-
-  // Clear Capture Compare Interrupt Flag.
-  TA0CCTL1 &= ~CCIFG;
 }
